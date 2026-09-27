@@ -1,0 +1,20 @@
+{"task_id": "t1", "run_id": 0, "step": 1, "input_tokens": 8000, "output_tokens": 400, "cache_read_tokens": 0, "cache_write_tokens": 8000, "repeated_views": 0, "repo_files": 120}
+{"task_id": "t1", "run_id": 0, "step": 2, "input_tokens": 11400, "output_tokens": 400, "cache_read_tokens": 8400, "cache_write_tokens": 3000, "repeated_views": 0, "repo_files": 120}
+{"task_id": "t1", "run_id": 0, "step": 3, "input_tokens": 14800, "output_tokens": 400, "cache_read_tokens": 11800, "cache_write_tokens": 3000, "repeated_views": 0, "repo_files": 120}
+{"task_id": "t1", "run_id": 0, "step": 4, "input_tokens": 18200, "output_tokens": 400, "cache_read_tokens": 15200, "cache_write_tokens": 3000, "repeated_views": 0, "repo_files": 120, "success": true}
+{"task_id": "t1", "run_id": 1, "step": 1, "input_tokens": 8000, "output_tokens": 400, "cache_read_tokens": 0, "cache_write_tokens": 8000, "repeated_views": 0, "repo_files": 120}
+{"task_id": "t1", "run_id": 1, "step": 2, "input_tokens": 11400, "output_tokens": 400, "cache_read_tokens": 8400, "cache_write_tokens": 3000, "repeated_views": 0, "repo_files": 120}
+{"task_id": "t1", "run_id": 1, "step": 3, "input_tokens": 14800, "output_tokens": 400, "cache_read_tokens": 11800, "cache_write_tokens": 3000, "repeated_views": 0, "repo_files": 120}
+{"task_id": "t1", "run_id": 1, "step": 4, "input_tokens": 18200, "output_tokens": 400, "cache_read_tokens": 15200, "cache_write_tokens": 3000, "repeated_views": 1, "repo_files": 120}
+{"task_id": "t1", "run_id": 1, "step": 5, "input_tokens": 21600, "output_tokens": 400, "cache_read_tokens": 18600, "cache_write_tokens": 3000, "repeated_views": 1, "repo_files": 120}
+{"task_id": "t1", "run_id": 1, "step": 6, "input_tokens": 25000, "output_tokens": 400, "cache_read_tokens": 22000, "cache_write_tokens": 3000, "repeated_views": 1, "repo_files": 120, "success": false}
+{"task_id": "t2", "run_id": 0, "step": 1, "input_tokens": 8000, "output_tokens": 400, "cache_read_tokens": 0, "cache_write_tokens": 8000, "repeated_views": 0, "repo_files": 900}
+{"task_id": "t2", "run_id": 0, "step": 2, "input_tokens": 11400, "output_tokens": 400, "cache_read_tokens": 8400, "cache_write_tokens": 3000, "repeated_views": 0, "repo_files": 900}
+{"task_id": "t2", "run_id": 0, "step": 3, "input_tokens": 14800, "output_tokens": 400, "cache_read_tokens": 11800, "cache_write_tokens": 3000, "repeated_views": 0, "repo_files": 900}
+{"task_id": "t2", "run_id": 0, "step": 4, "input_tokens": 18200, "output_tokens": 400, "cache_read_tokens": 15200, "cache_write_tokens": 3000, "repeated_views": 0, "repo_files": 900, "success": true}
+{"task_id": "t2", "run_id": 1, "step": 1, "input_tokens": 8000, "output_tokens": 400, "cache_read_tokens": 0, "cache_write_tokens": 8000, "repeated_views": 0, "repo_files": 900}
+{"task_id": "t2", "run_id": 1, "step": 2, "input_tokens": 11400, "output_tokens": 400, "cache_read_tokens": 8400, "cache_write_tokens": 3000, "repeated_views": 0, "repo_files": 900}
+{"task_id": "t2", "run_id": 1, "step": 3, "input_tokens": 14800, "output_tokens": 400, "cache_read_tokens": 11800, "cache_write_tokens": 3000, "repeated_views": 0, "repo_files": 900}
+{"task_id": "t2", "run_id": 1, "step": 4, "input_tokens": 18200, "output_tokens": 400, "cache_read_tokens": 15200, "cache_write_tokens": 3000, "repeated_views": 1, "repo_files": 900}
+{"task_id": "t2", "run_id": 1, "step": 5, "input_tokens": 21600, "output_tokens": 400, "cache_read_tokens": 18600, "cache_write_tokens": 3000, "repeated_views": 1, "repo_files": 900}
+{"task_id": "t2", "run_id": 1, "step": 6, "input_tokens": 25000, "output_tokens": 400, "cache_read_tokens": 22000, "cache_write_tokens": 3000, "repeated_views": 1, "repo_files": 900, "success": false}
