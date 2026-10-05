@@ -1,4 +1,4 @@
-"""Command-line interface: pesh simulate | calibrate | train | evaluate | experiments | quote | serve."""
+"""Command-line interface: pesh simulate | calibrate | train | evaluate | experiments | quote | serve | dashboard."""
 
 from __future__ import annotations
 
@@ -139,6 +139,50 @@ def cmd_serve(a):
     uvicorn.run(app, host=a.host, port=a.port)
 
 
+def _sample_model(folder: Path):
+    """Quote engine + feasibility model trained offline on simulated runs; cached in `folder`."""
+    from .control.feasibility import FeasibilityModel, train_from_simulation
+    from .data.io import split_by_task
+    from .quote.engine import QuoteEngine
+    from .sim.dgp import simulate
+
+    eng_path, fm_path = folder / "engine.pkl", folder / "feasibility.pkl"
+    if eng_path.exists() and fm_path.exists():
+        return QuoteEngine.load(eng_path), FeasibilityModel.load(fm_path)
+    print("Preparing a sample model from simulated runs (first launch only, about 20 seconds)...", flush=True)
+    train, calib = split_by_task(simulate(3000, 1, seed=0), (0.67, 0.33), seed=0)
+    engine = QuoteEngine(QuoteConfig()).fit(train, calib)
+    fm = train_from_simulation(n_tasks=800, seed=101)
+    folder.mkdir(parents=True, exist_ok=True)
+    engine.save(eng_path)
+    fm.save(fm_path)
+    return engine, fm
+
+
+def cmd_dashboard(a):
+    import threading
+    import webbrowser
+
+    import uvicorn
+
+    from .control.feasibility import FeasibilityModel
+    from .dashboard import create_dashboard_app
+    from .quote.engine import QuoteEngine
+
+    if a.engine:
+        engine = QuoteEngine.load(a.engine)
+        fm = FeasibilityModel.load(a.feasibility) if a.feasibility else None
+    else:
+        engine, fm = _sample_model(Path(a.sample_dir))
+    app = create_dashboard_app(engine, fm, db_path=a.db, drift_min_n=a.drift_min_n, headroom=a.headroom,
+                               controller_config=ControllerConfig())
+    url = f"http://{a.host}:{a.port}/"
+    print(f"Pesh dashboard running at {url}  (press Ctrl+C to stop)", flush=True)
+    if not a.no_browser:
+        threading.Timer(1.2, lambda: webbrowser.open(url)).start()
+    uvicorn.run(app, host=a.host, port=a.port, log_level="warning")
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="pesh", description=__doc__)
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -200,6 +244,18 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--exploration", type=float, default=0.05)
     s.add_argument("--db")
     s.set_defaults(fn=cmd_serve)
+
+    s = sub.add_parser("dashboard", help="open the local web dashboard (analyze logs, quote, live monitor)")
+    s.add_argument("--engine", help="trained engine.pkl; default: a sample model trained on simulated runs")
+    s.add_argument("--feasibility", help="feasibility.pkl to go with --engine")
+    s.add_argument("--sample-dir", default="artifacts/dashboard-sample", help="where the sample model is cached")
+    s.add_argument("--host", default="127.0.0.1")
+    s.add_argument("--port", type=int, default=8050)
+    s.add_argument("--db", default="pesh_dashboard.sqlite", help="SQLite file for finished runs")
+    s.add_argument("--headroom", type=float, default=1.0, help="ceiling = headroom x quote")
+    s.add_argument("--drift-min-n", type=int, default=20, help="finished runs before the drift alarm can fire")
+    s.add_argument("--no-browser", action="store_true", help="don't open a browser window")
+    s.set_defaults(fn=cmd_dashboard)
     return p
 
 

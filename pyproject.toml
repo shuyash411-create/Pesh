@@ -30,6 +30,9 @@ pesh = "pesh.cli:main"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+pesh = ["dashboard/static/*"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 markers = ["slow: statistical reproduction of the paper's experiments (E1-E5)"]
