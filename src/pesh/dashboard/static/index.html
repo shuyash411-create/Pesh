@@ -1,0 +1,620 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pesh dashboard</title>
+<style>
+:root{
+  color-scheme:light;
+  --bg:#f3f5f6; --surface:#ffffff; --sunken:#eef1f3; --ink:#141a20; --ink2:#46505b; --muted:#6b7580; --rule:#dde2e6;
+  --accent:#0d6c66; --accent-ink:#ffffff; --accent-soft:#dff0ee;
+  --good:#1f7a3d; --good-bg:#e3f4e8; --bad:#b42318; --bad-bg:#fde8e6; --warn:#8a5a00; --warn-bg:#fff2d6;
+  --s1:#2a78d6; --mark:#46505b;
+  --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    color-scheme:dark;
+    --bg:#0f1316; --surface:#171c20; --sunken:#1d2328; --ink:#eef1f3; --ink2:#bcc4cb; --muted:#8b959e; --rule:#2a3137;
+    --accent:#4dbdb4; --accent-ink:#0b1513; --accent-soft:#15302e;
+    --good:#5bcf83; --good-bg:#143021; --bad:#ff7a6e; --bad-bg:#3a1714; --warn:#f2c46b; --warn-bg:#33270f;
+    --s1:#3987e5; --mark:#bcc4cb;
+  }
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font:15px/1.55 var(--font);padding-inline:16px}
+.wrap{max-width:1080px;margin-inline:auto;padding-block:20px 56px;display:grid;gap:20px}
+header{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px 24px;border-bottom:1px solid var(--rule);padding-bottom:14px}
+.brand{display:grid;gap:2px}
+.brand b{font-size:22px;letter-spacing:-.01em}
+.brand span{color:var(--muted);font-size:14px}
+[role=tablist]{display:flex;gap:4px;flex-wrap:wrap}
+[role=tab]{font:inherit;font-size:14px;font-weight:600;border:1px solid var(--rule);background:var(--surface);color:var(--ink2);padding:8px 14px;border-radius:999px;cursor:pointer}
+[role=tab][aria-selected=true]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+[role=tab]:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+h1{font-size:24px;line-height:1.25;margin:0;text-wrap:balance}
+h2{font-size:15px;margin:0;color:var(--ink2);font-weight:600}
+p{margin:0;max-width:72ch}
+.lead{color:var(--ink2)}
+.muted{color:var(--muted)}
+.small{font-size:13px}
+code{font-family:var(--mono);font-size:.92em;background:var(--sunken);padding:1px 5px;border-radius:4px}
+section[role=tabpanel]{display:grid;gap:18px}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.btn{font:inherit;font-weight:600;font-size:14px;border-radius:8px;padding:9px 16px;cursor:pointer;border:1px solid var(--accent);background:var(--accent);color:var(--accent-ink)}
+.btn.secondary{background:var(--surface);color:var(--accent)}
+.btn:disabled{opacity:.5;cursor:default}
+label.file{position:relative;display:inline-flex;align-items:center}
+label.file:focus-within{outline:2px solid var(--accent);outline-offset:2px}
+label.file input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%}
+.field{display:grid;gap:4px}
+.field label{font-weight:600;font-size:14px}
+.field .help{font-size:13px;color:var(--muted)}
+input[type=number],select{font:inherit;padding:7px 10px;border:1px solid var(--rule);border-radius:8px;background:var(--surface);color:var(--ink);min-width:0}
+input[type=range]{width:100%;accent-color:var(--accent)}
+.inline{display:flex;gap:8px;align-items:center}
+.inline input[type=number]{width:120px}
+.status{min-height:22px;font-size:14px;color:var(--muted)}
+.status.err{color:var(--bad)}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr));gap:14px}
+.card{background:var(--surface);border:1px solid var(--rule);border-radius:12px;padding:16px;display:grid;gap:8px;align-content:start}
+.big{font-size:34px;font-weight:650;line-height:1.1;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+.big small{font-size:15px;font-weight:500;color:var(--muted)}
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;padding:3px 9px;border-radius:999px;width:max-content;max-width:100%}
+.pill.good{background:var(--good-bg);color:var(--good)}
+.pill.bad{background:var(--bad-bg);color:var(--bad)}
+.pill.warn{background:var(--warn-bg);color:var(--warn)}
+.pill.neutral{background:var(--sunken);color:var(--ink2)}
+.chartbox{position:relative;height:300px}
+.legend{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:13px;color:var(--ink2)}
+.legend i{display:inline-block;width:14px;height:0;border-top:2px dashed var(--mark);vertical-align:middle;margin-right:6px}
+.quote-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:18px;align-items:start}
+.form{display:grid;gap:16px}
+.sentence{font-size:20px;line-height:1.5;margin:0}
+.sentence b{font-variant-numeric:tabular-nums;color:var(--accent)}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px}
+.tile{background:var(--sunken);border-radius:10px;padding:12px;display:grid;gap:2px}
+.tile b{font-size:22px;font-variant-numeric:tabular-nums}
+.tile span{font-size:13px;color:var(--muted)}
+.meter{position:relative;height:14px;border-radius:999px;background:var(--sunken);overflow:visible}
+.meter .fill{position:absolute;inset:0 auto 0 0;border-radius:999px;background:var(--accent);transition:width .3s}
+.meter .fill.over{background:var(--bad)}
+.meter .tick{position:absolute;top:-5px;bottom:-5px;width:2px;background:var(--ink)}
+.scale{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+.light{width:14px;height:14px;border-radius:50%;display:inline-block;flex:none}
+.light.good{background:var(--good);box-shadow:0 0 0 4px var(--good-bg)}
+.light.bad{background:var(--bad);box-shadow:0 0 0 4px var(--bad-bg)}
+.light.idle{background:var(--muted);box-shadow:0 0 0 4px var(--sunken)}
+.alarm{display:flex;gap:12px;align-items:center;font-size:18px;font-weight:650}
+.runs{display:grid;gap:0;background:var(--surface);border:1px solid var(--rule);border-radius:12px;overflow:hidden}
+.runrow{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr) auto;gap:12px;align-items:center;padding:10px 14px;border-top:1px solid var(--rule)}
+.runrow:first-child{border-top:none}
+.runrow .mini{height:8px;border-radius:999px;background:var(--sunken);position:relative;overflow:hidden}
+.runrow .mini span{position:absolute;inset:0 auto 0 0;background:var(--accent);border-radius:999px}
+.runrow .mini span.over{background:var(--bad)}
+.runrow .amt{font-variant-numeric:tabular-nums;font-size:13px;color:var(--ink2);white-space:nowrap}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.empty{padding:18px 14px;color:var(--muted);font-size:14px}
+.monitor-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr));gap:14px}
+.tiles.two{grid-template-columns:repeat(2,minmax(0,1fr))}
+.check{display:flex;gap:8px;align-items:flex-start;font-size:14px;max-width:60ch}
+.check input{margin-top:3px;accent-color:var(--accent)}
+[hidden]{display:none!important}
+@media (max-width:560px){
+  .runrow{grid-template-columns:1fr;gap:6px}
+  .big{font-size:28px}
+}
+@media (prefers-reduced-motion: reduce){.meter .fill{transition:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <div class="brand"><b>Pesh</b><span>See what an AI agent run will cost, before it runs.</span></div>
+  <nav role="tablist" aria-label="Dashboard screens">
+    <button role="tab" id="tab-analyze" aria-controls="panel-analyze" aria-selected="true">Analyze logs</button>
+    <button role="tab" id="tab-quote" aria-controls="panel-quote" aria-selected="false">Quote a task</button>
+    <button role="tab" id="tab-monitor" aria-controls="panel-monitor" aria-selected="false">Live monitor</button>
+  </nav>
+</header>
+
+<!-- 1. Analyze logs -->
+<section role="tabpanel" id="panel-analyze" aria-labelledby="tab-analyze">
+  <div style="display:grid;gap:6px">
+    <h1>What do your past agent runs say about cost?</h1>
+    <p class="lead">Load a log of past runs to see how predictable the cost is, how extreme the expensive runs get, and what a month of runs is likely to cost.</p>
+  </div>
+  <div class="row">
+    <button class="btn" id="use-sample" type="button">Use sample data</button>
+    <label class="file btn secondary">
+      Choose a file…<input id="file" type="file" accept=".csv,.parquet,.pq,.jsonl" aria-label="Choose a CSV or Parquet file of past runs">
+    </label>
+    <div class="inline"><label for="rpm" class="small muted">Runs per month</label><input id="rpm" type="number" min="1" max="20000" step="100" value="2000"></div>
+  </div>
+  <p class="small muted">Your file needs one row per run with the columns <code>task_id</code>, <code>run_id</code>, <code>cost</code> (in dollars) and <code>success</code> (true/false). CSV or Parquet.</p>
+  <div class="status" id="analyze-status" role="status"></div>
+
+  <div id="analyze-results" hidden>
+    <div style="display:grid;gap:14px">
+      <p class="small muted" id="source-line"></p>
+      <div class="cards" id="analyze-cards"></div>
+      <div class="card">
+        <h2>How much does a single run cost?</h2>
+        <div class="legend" id="hist-legend"></div>
+        <div class="chartbox"><canvas id="hist" aria-label="Histogram of cost per run" role="img"></canvas></div>
+        <p class="small muted" id="hist-note">Each bar counts runs in a price band. The scale is stretched so cheap and expensive runs both fit.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 2. Quote a task -->
+<section role="tabpanel" id="panel-quote" aria-labelledby="tab-quote" hidden>
+  <div style="display:grid;gap:6px">
+    <h1>Get a price before the run starts</h1>
+    <p class="lead">Describe the task. Pesh estimates what the run will cost, sets a ceiling it will never go over, and offers a fixed price.</p>
+  </div>
+  <div class="quote-grid">
+    <form class="card form" id="quote-form">
+      <div id="quote-fields" class="form"></div>
+      <div class="row"><button class="btn" type="submit">Get quote</button></div>
+    </form>
+    <div class="card" id="quote-result" aria-live="polite">
+      <p class="muted">Fill in the task details to get a quote.</p>
+    </div>
+  </div>
+</section>
+
+<!-- 3. Live monitor -->
+<section role="tabpanel" id="panel-monitor" aria-labelledby="tab-monitor" hidden>
+  <div style="display:grid;gap:6px">
+    <h1>Are the quotes still right?</h1>
+    <p class="lead">Every finished run is checked against its quote. If too many runs cost more than quoted, the alarm turns red and the quotes adjust themselves.</p>
+  </div>
+  <div class="card" style="gap:12px">
+    <div class="row">
+      <button class="btn" id="sim-one" type="button">Simulate a run</button>
+      <button class="btn secondary" id="sim-many" type="button">Simulate 20 runs</button>
+    </div>
+    <label class="check"><input type="checkbox" id="drift"> <span>Pretend the AI provider just updated its model, so runs get wordier and more expensive. Watch the safety controls work harder: more runs switch to a cheaper model or are stopped early.</span></label>
+    <div class="status" id="sim-status" role="status"></div>
+  </div>
+  <div class="monitor-grid">
+    <div class="card">
+      <h2>Quote accuracy</h2>
+      <div class="big" id="cov-big">–</div>
+      <div class="meter" aria-hidden="true"><div class="fill" id="cov-fill" style="width:0"></div><div class="tick" id="cov-tick"></div></div>
+      <div class="scale"><span>50%</span><span id="cov-target-label">target 90%</span><span>100%</span></div>
+      <p class="small muted" id="cov-note">Share of finished runs that cost no more than their quote. Runs stopped early are left out, because we never see what they would have cost.</p>
+    </div>
+    <div class="card">
+      <h2>Drift alarm</h2>
+      <div class="alarm"><span class="light idle" id="alarm-light"></span><span id="alarm-text">Waiting for runs</span></div>
+      <p class="small muted" id="alarm-note"></p>
+    </div>
+    <div class="card">
+      <h2>Current run: spend vs ceiling</h2>
+      <div class="big" id="live-spent">–</div>
+      <div class="meter" aria-hidden="true"><div class="fill" id="live-fill" style="width:0"></div></div>
+      <div class="scale"><span>$0</span><span id="live-ceiling">ceiling</span></div>
+      <p class="small" id="live-text"><span class="muted">Press “Simulate a run” to watch one.</span></p>
+    </div>
+    <div class="card">
+      <h2>Safety controls, last <span id="safety-n">0</span> runs</h2>
+      <div class="tiles two" id="safety-tiles"></div>
+      <p class="small muted">When runs get more expensive, these numbers rise first: Pesh switches to a cheaper model or stops a run that looks unlikely to succeed, so the bill stays under the ceiling.</p>
+    </div>
+  </div>
+  <div style="display:grid;gap:8px">
+    <h2>Recent runs</h2>
+    <div class="runs" id="run-list"><div class="empty">No runs yet.</div></div>
+  </div>
+</section>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"
+        onerror="var s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.js';s.onload=function(){window.dispatchEvent(new Event('chart-ready'))};document.head.appendChild(s)"></script>
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+const money = (x) => x >= 100 ? "$" + Math.round(x).toLocaleString() : "$" + x.toFixed(2);
+const pct = (x) => Math.round(x * 100) + "%";
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]));
+let SETTINGS = {coverage_level: 0.9, drift_min_n: 20, compact_to: 12000};
+
+async function api(path, opts = {}) {
+  const r = await fetch(path, opts);
+  let body = {};
+  try { body = await r.json(); } catch (_) { /* empty body */ }
+  if (!r.ok) {
+    const d = body.detail;
+    throw new Error(typeof d === "string" ? d : "Something in the request wasn't valid. Check the inputs and try again.");
+  }
+  return body;
+}
+const post = (path, data) => api(path, {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(data)});
+
+/* ---------------- tabs ---------------- */
+const tabs = [...document.querySelectorAll("[role=tab]")];
+function selectTab(tab) {
+  tabs.forEach((t) => {
+    const on = t === tab;
+    t.setAttribute("aria-selected", on);
+    t.tabIndex = on ? 0 : -1;
+    $(t.getAttribute("aria-controls")).hidden = !on;
+  });
+  try { localStorage.setItem("pesh-tab", tab.id); } catch (_) {}
+  if (tab.id === "tab-monitor") refreshMonitor();
+}
+tabs.forEach((t, i) => {
+  t.addEventListener("click", () => selectTab(t));
+  t.addEventListener("keydown", (e) => {
+    if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+    const n = tabs[(i + (e.key === "ArrowRight" ? 1 : tabs.length - 1)) % tabs.length];
+    selectTab(n); n.focus();
+  });
+});
+
+/* ---------------- 1. analyze ---------------- */
+let histChart = null, lastHist = null;
+function cssVar(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+
+function card(title, big, pill, text) {
+  return `<div class="card"><h2>${title}</h2><div class="big">${big}</div>${pill || ""}<p class="small">${text}</p></div>`;
+}
+
+function renderAnalysis(r) {
+  $("analyze-results").hidden = false;
+  $("source-line").textContent = `${r.source}: ${r.n_runs.toLocaleString()} runs of ${r.n_tasks.toLocaleString()} tasks, average ${money(r.mean_cost)} per run.`;
+  const p = r.predictability, t = r.tail, f = r.forecast, q = r.quote_check;
+  const out = [];
+  if (p.value !== null) {
+    const cls = {high: "good", some: "warn", low: "bad"}[p.verdict];
+    const word = {high: "Highly predictable", some: "Partly predictable", low: "Hard to predict"}[p.verdict];
+    out.push(card("How predictable is the cost?", pct(p.value), `<span class="pill ${cls}">${word}</span>`, esc(p.text)));
+  } else {
+    out.push(card("How predictable is the cost?", "–", `<span class="pill neutral">Not enough data</span>`, esc(p.reason)));
+  }
+  if (t.value !== null) {
+    const pill = t.infinite_variance
+      ? `<span class="pill bad">⚠ Infinite variance</span>`
+      : `<span class="pill good">Variance is finite</span>`;
+    out.push(card("How extreme are the expensive runs?", `${t.value.toFixed(1)} <small>tail index</small>`, pill,
+      esc(t.text) + ` <span class="muted">Higher is calmer; below 2 means averages can't be trusted.</span>`));
+  } else {
+    out.push(card("How extreme are the expensive runs?", "–", `<span class="pill neutral">Not enough data</span>`, esc(t.reason)));
+  }
+  out.push(card("Monthly forecast", `${money(f.expected)} <small>/ month</small>`,
+    `<span class="pill neutral">90% of months below ${money(f.p90)}</span>`,
+    `${esc(f.text)} <span class="muted">Based on ${f.runs_per_month.toLocaleString()} runs a month.</span>`));
+  if (q) {
+    const ok = q.coverage >= q.target - 0.03;
+    out.push(card("Would our quotes have held?", pct(q.coverage),
+      `<span class="pill ${ok ? "good" : "warn"}">${ok ? "On target" : "Below target"}</span>`, esc(q.text)));
+  }
+  $("analyze-cards").innerHTML = out.join("");
+  lastHist = r.histogram;
+  drawHistogram();
+}
+
+function niceTicks(lo, hi) {
+  const out = [];
+  for (let e = -3; e <= 5; e++) for (const m of [1, 2, 5]) {
+    const v = m * Math.pow(10, e);
+    if (v >= lo && v <= hi) out.push(v);
+  }
+  return out;
+}
+
+function drawHistogram() {
+  const h = lastHist;
+  if (!h) return;
+  const marks = [["Median", h.median], ["90% of runs below", h.p90], ["99% of runs below", h.p99]];
+  $("hist-legend").innerHTML = marks.map(([n, v]) => `<span><i></i>${n}: <b>${money(v)}</b></span>`).join("");
+  if (!window.Chart) {
+    $("hist").parentElement.hidden = true;
+    $("hist-note").textContent = "The chart needs an internet connection to load. The figures above are complete without it.";
+    return;
+  }
+  $("hist").parentElement.hidden = false;
+  const lg = (v) => Math.log10(v);
+  const data = h.counts.map((c, i) => ({x: (lg(h.edges[i]) + lg(h.edges[i + 1])) / 2, y: c, lo: h.edges[i], hi: h.edges[i + 1]}));
+  const ink = cssVar("--ink2"), grid = cssVar("--rule"), bar = cssVar("--s1"), mark = cssVar("--mark");
+  const markerPlugin = {
+    id: "markers",
+    afterDatasetsDraw(chart) {
+      const {ctx, chartArea: a, scales: {x}} = chart;
+      ctx.save();
+      ctx.strokeStyle = mark; ctx.fillStyle = ink; ctx.lineWidth = 1.5; ctx.setLineDash([5, 4]);
+      ctx.font = "12px " + cssVar("--font"); ctx.textAlign = "center";
+      marks.forEach(([n, v], i) => {
+        const px = x.getPixelForValue(lg(v));
+        ctx.beginPath(); ctx.moveTo(px, a.top); ctx.lineTo(px, a.bottom); ctx.stroke();
+        ctx.fillText(["median", "p90", "p99"][i], Math.min(Math.max(px, a.left + 20), a.right - 20), a.top - 7);
+      });
+      ctx.restore();
+    },
+  };
+  if (histChart) histChart.destroy();
+  histChart = new Chart($("hist"), {
+    type: "bar",
+    data: {datasets: [{data, backgroundColor: bar, borderRadius: {topLeft: 3, topRight: 3}, barPercentage: 0.94, categoryPercentage: 1}]},
+    options: {
+      maintainAspectRatio: false, animation: false,
+      layout: {padding: {top: 22}},
+      plugins: {
+        legend: {display: false},
+        tooltip: {callbacks: {
+          title: (items) => `${money(items[0].raw.lo)} – ${money(items[0].raw.hi)}`,
+          label: (item) => `${item.raw.y.toLocaleString()} runs`,
+        }},
+      },
+      scales: {
+        x: {type: "linear", min: lg(h.edges[0]), max: lg(h.edges[h.edges.length - 1]),
+            grid: {display: false}, border: {color: grid},
+            afterBuildTicks: (s) => { s.ticks = niceTicks(h.edges[0], h.edges[h.edges.length - 1]).map((v) => ({value: lg(v)})); },
+            ticks: {color: ink, callback: (v) => money(Math.pow(10, v))},
+            title: {display: true, text: "Cost of one run", color: ink}},
+        y: {beginAtZero: true, grid: {color: grid}, border: {display: false}, ticks: {color: ink, precision: 0},
+            title: {display: true, text: "Number of runs", color: ink}},
+      },
+    },
+    plugins: [markerPlugin],
+  });
+}
+window.addEventListener("chart-ready", drawHistogram);
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", drawHistogram);
+
+async function analyze(fetcher, label) {
+  $("analyze-status").className = "status";
+  $("analyze-status").textContent = `Analyzing ${label}…`;
+  $("use-sample").disabled = true;
+  try {
+    renderAnalysis(await fetcher());
+    $("analyze-status").textContent = "";
+  } catch (e) {
+    $("analyze-status").className = "status err";
+    $("analyze-status").textContent = e.message;
+  } finally {
+    $("use-sample").disabled = false;
+  }
+}
+const rpm = () => Math.max(1, Math.min(20000, parseInt($("rpm").value, 10) || 2000));
+let lastSource = null;
+$("use-sample").addEventListener("click", () => {
+  lastSource = "sample";
+  analyze(() => api(`/dashboard/analyze?sample=true&runs_per_month=${rpm()}`, {method: "POST"}), "the sample data");
+});
+$("file").addEventListener("change", () => {
+  const f = $("file").files[0];
+  if (!f) return;
+  lastSource = f;
+  analyze(() => api(`/dashboard/analyze?filename=${encodeURIComponent(f.name)}&runs_per_month=${rpm()}`,
+    {method: "POST", body: f}), f.name);
+});
+$("rpm").addEventListener("change", () => {
+  if (lastSource === "sample") $("use-sample").click();
+  else if (lastSource) $("file").dispatchEvent(new Event("change"));
+});
+
+/* ---------------- 2. quote ---------------- */
+let FEATURES = [];
+function buildForm() {
+  $("quote-fields").innerHTML = FEATURES.map((f) => {
+    const help = f.help ? `<span class="help">${esc(f.help)}</span>` : "";
+    if (f.kind === "choice") {
+      const opts = f.options.map((o) => `<option value="${esc(o.value)}"${o.value === f.default ? " selected" : ""}>${esc(o.label)}</option>`).join("");
+      return `<div class="field"><label for="f-${f.name}">${esc(f.label)}</label>${help}<select id="f-${f.name}" name="${f.name}">${opts}</select></div>`;
+    }
+    const step = ((f.max - f.min) / 100).toPrecision(2);
+    return `<div class="field"><label for="f-${f.name}">${esc(f.label)}</label>${help}
+      <div class="inline"><input type="range" id="r-${f.name}" min="${f.min}" max="${f.max}" step="${step}" value="${f.default}" aria-label="${esc(f.label)} slider">
+      <input type="number" id="f-${f.name}" name="${f.name}" step="${step}" value="${f.default.toFixed(1)}"></div></div>`;
+  }).join("");
+  FEATURES.filter((f) => f.kind === "number").forEach((f) => {
+    const r = $("r-" + f.name), n = $("f-" + f.name);
+    r.addEventListener("input", () => { n.value = (+r.value).toFixed(1); scheduleQuote(); });
+    n.addEventListener("input", () => { r.value = n.value; scheduleQuote(); });
+  });
+  FEATURES.filter((f) => f.kind === "choice").forEach((f) => $("f-" + f.name).addEventListener("change", scheduleQuote));
+}
+function readFeatures() {
+  const out = {};
+  for (const f of FEATURES) {
+    const v = $("f-" + f.name).value;
+    out[f.name] = f.kind === "number" ? parseFloat(v) : v;
+  }
+  return out;
+}
+let quoteTimer = null;
+function scheduleQuote() { clearTimeout(quoteTimer); quoteTimer = setTimeout(getQuote, 250); }
+async function getQuote() {
+  const box = $("quote-result");
+  try {
+    const q = await post("/quote", {features: readFeatures()});
+    const level = Math.round(q.coverage_level * 100);
+    box.innerHTML = `
+      <p class="sentence">This run will cost about <b>${money(q.p50)}</b>. Guaranteed ceiling <b>${money(q.ceiling)}</b>. Fixed price <b>${money(q.fixed_price)}</b>.</p>
+      <div class="tiles">
+        <div class="tile"><span>Likely cost</span><b>${money(q.p50)}</b><span>half of similar runs cost less</span></div>
+        <div class="tile"><span>Ceiling</span><b>${money(q.ceiling)}</b><span>the run is stopped before it goes over</span></div>
+        <div class="tile"><span>Fixed price</span><b>${money(q.fixed_price)}</b><span>you pay this whatever happens</span></div>
+      </div>
+      <p class="small muted">${level} in 100 similar runs cost less than ${money(q.quote)}. With the fixed price you pay ${money(q.fixed_price)} whatever happens, and we absorb any overrun.</p>
+      ${q.warning ? `<p class="small"><span class="pill warn">Note</span> ${esc(q.warning)}</p>` : ""}`;
+  } catch (e) {
+    box.innerHTML = `<p class="status err">${esc(e.message)}</p>`;
+  }
+}
+$("quote-form").addEventListener("submit", (e) => { e.preventDefault(); getQuote(); });
+
+/* ---------------- 3. monitor ---------------- */
+const OUTCOME = {
+  running: ["neutral", "Running"],
+  capped: ["bad", "Hit the ceiling"],
+  stopped: ["warn", "Stopped early (unlikely to succeed)"],
+};
+function outcomeChips(r) {
+  let main;
+  if (r.status === "finished") main = r.success ? ["good", "Finished · task solved"] : ["neutral", "Finished · not solved"];
+  else main = OUTCOME[r.status] || ["neutral", r.status];
+  const chips = [`<span class="pill ${main[0]}">${main[1]}</span>`];
+  if (r.degraded) chips.push(`<span class="pill neutral">Switched to cheaper model</span>`);
+  if (r.exploration) chips.push(`<span class="pill neutral">Learning run (wider ceiling)</span>`);
+  if (r.closed && r.status !== "stopped") chips.push(r.spent <= r.quote + 1e-9 && r.status !== "capped"
+    ? `<span class="pill good">Within quote</span>` : `<span class="pill bad">Over quote</span>`);
+  return chips.join("");
+}
+function renderSafety(list) {
+  const done = list.filter((r) => r.closed);
+  $("safety-n").textContent = done.length;
+  const share = (f) => done.length ? pct(done.filter(f).length / done.length) : "–";
+  const avg = done.length ? money(done.reduce((a, r) => a + r.spent, 0) / done.length) : "–";
+  $("safety-tiles").innerHTML = [
+    ["Switched to cheaper model", share((r) => r.degraded)],
+    ["Stopped early", share((r) => r.status === "stopped")],
+    ["Hit the ceiling", share((r) => r.status === "capped")],
+    ["Average spend per run", avg],
+  ].map(([k, v]) => `<div class="tile"><b>${v}</b><span>${k}</span></div>`).join("");
+}
+function renderRuns(list) {
+  if (!list.length) { $("run-list").innerHTML = `<div class="empty">No runs yet. Press “Simulate a run”.</div>`; return; }
+  $("run-list").innerHTML = list.map((r) => {
+    const w = Math.min(100, (r.spent / r.budget) * 100);
+    return `<div class="runrow"><div class="chips">${outcomeChips(r)}</div>
+      <div class="mini" title="spend vs ceiling"><span class="${r.status === "capped" ? "over" : ""}" style="width:${w}%"></span></div>
+      <div class="amt">${money(r.spent)} of ${money(r.budget)} · ${r.steps} steps</div></div>`;
+  }).join("");
+}
+function renderCoverage(m) {
+  const target = m.target;
+  $("cov-tick").style.left = `${((target - 0.5) / 0.5) * 100}%`;
+  $("cov-target-label").textContent = `target ${pct(target)}`;
+  const light = $("alarm-light");
+  if (m.rolling_coverage === null) {
+    $("cov-big").textContent = "–";
+    $("cov-fill").style.width = "0";
+    $("cov-note").textContent = "No finished runs yet. Simulate a few to fill this in.";
+    light.className = "light idle"; $("alarm-text").textContent = "Waiting for runs";
+    $("alarm-note").textContent = `The alarm starts checking after ${SETTINGS.drift_min_n} finished runs.`;
+    return;
+  }
+  const c = m.rolling_coverage;
+  $("cov-big").innerHTML = `${pct(c)} <small>of ${m.n} runs within quote</small>`;
+  const w = Math.max(0, Math.min(1, (c - 0.5) / 0.5)) * 100;
+  $("cov-fill").style.width = w + "%";
+  $("cov-fill").classList.toggle("over", m.drift_alarm);
+  $("cov-note").textContent = `Pesh aims for ${pct(target)} of runs to come in at or under their quote.`;
+  if (m.drift_alarm) {
+    light.className = "light bad";
+    $("alarm-text").textContent = "Drift alarm: quotes are running low";
+    $("alarm-note").textContent = "More runs than expected cost more than quoted. Pesh is raising its quotes automatically; retraining on recent runs will fix it for good.";
+  } else if (m.n < SETTINGS.drift_min_n) {
+    light.className = "light idle";
+    $("alarm-text").textContent = "Collecting runs";
+    $("alarm-note").textContent = `The alarm starts checking after ${SETTINGS.drift_min_n} finished runs (${m.n} so far).`;
+  } else {
+    light.className = "light good";
+    $("alarm-text").textContent = "Quotes on target";
+    $("alarm-note").textContent = "Runs are costing what the quotes said they would. The alarm turns red if fewer than the target share of finished runs come in under their quote.";
+  }
+}
+async function refreshMonitor() {
+  try {
+    const [m, list] = await Promise.all([api("/monitor/coverage"), api("/dashboard/runs?limit=40")]);
+    renderCoverage(m);
+    renderSafety(list);
+    renderRuns(list.slice(0, 12));
+  } catch (_) { /* server busy or restarting; try again on the next tick */ }
+}
+setInterval(() => { if (!$("panel-monitor").hidden) refreshMonitor(); }, 2000);
+
+function showLive(state) {
+  $("live-spent").innerHTML = `${money(state.spent)} <small>of ${money(state.budget)} ceiling</small>`;
+  $("live-ceiling").textContent = `ceiling ${money(state.budget)}`;
+  $("live-fill").style.width = Math.min(100, (state.spent / state.budget) * 100) + "%";
+  $("live-fill").classList.toggle("over", state.capped);
+  $("live-text").textContent = state.text;
+}
+
+async function simulateRun(animate) {
+  const drift = $("drift").checked;
+  const traj = await api(`/dashboard/sample-task?drift=${drift}`);
+  const run = await post("/runs", {task_id: `demo-${traj.seed}`, features: traj.features});
+  const id = run.run_id, budget = run.budget;
+  let base = traj.initial_context, prior = 0, newTok = base, ended = null, spent = 0, degraded = false, step = 0;
+  const live = (text, capped = false) => animate && showLive({spent, budget, text, capped});
+  live(`Started. Quoted about ${money(run.p50)}; ceiling ${money(budget)}.`);
+  for (const s of traj.steps) {
+    const context = Math.min(1e6, base + prior);
+    const write = Math.min(newTok, context), read = context - write;
+    const auth = await post(`/runs/${id}/authorize`, {input_tokens: context, cache_read_tokens: read,
+      cache_write_tokens: write, max_output_tokens: Math.max(1500, 2 * s.output)});
+    if (!auth.allowed) { ended = "capped"; break; }
+    const st = await post(`/runs/${id}/step`, {input_tokens: context, output_tokens: s.output,
+      cache_read_tokens: read, cache_write_tokens: write, repeated_views: s.repeated_views});
+    spent = st.spent; step += 1;
+    prior += s.appended; newTok = s.appended;
+    if (st.decision === "degrade") {
+      degraded = true;
+      base = Math.min(SETTINGS.compact_to, base + prior); prior = 0; newTok = base;
+    }
+    if (st.decision === "stop") { ended = st.status; break; }
+    live(`Step ${step}${degraded ? " · switched to a cheaper model to stay under the ceiling" : ""}`);
+    if (animate) await sleep(60);
+  }
+  const fin = await post(`/runs/${id}/finish`, {success: ended ? false : traj.success});
+  const text = ended === "capped" ? "Hit the ceiling: the next call could have gone over, so it was blocked."
+    : ended === "stopped" ? "Stopped early: the run looked unlikely to succeed within budget."
+    : fin.success ? "Finished: the task was solved." : "Finished: the task wasn't solved.";
+  if (animate) showLive({spent, budget, text: `${text} Spent ${money(spent)}.`, capped: ended === "capped"});
+  return {spent, budget, text};
+}
+
+async function simulate(n, animate) {
+  const buttons = [$("sim-one"), $("sim-many")];
+  buttons.forEach((b) => (b.disabled = true));
+  $("sim-status").className = "status";
+  try {
+    let last;
+    for (let i = 0; i < n; i++) {
+      $("sim-status").textContent = n > 1 ? `Simulating run ${i + 1} of ${n}…` : "Simulating a run…";
+      last = await simulateRun(animate);
+      if (!animate) await refreshMonitor();
+    }
+    if (!animate && last) showLive({spent: last.spent, budget: last.budget, text: `Last run: ${last.text}`, capped: /ceiling/.test(last.text)});
+    $("sim-status").textContent = `Done. ${n === 1 ? "1 run" : n + " runs"} went through the live service.`;
+  } catch (e) {
+    $("sim-status").className = "status err";
+    $("sim-status").textContent = e.message;
+  } finally {
+    buttons.forEach((b) => (b.disabled = false));
+    refreshMonitor();
+  }
+}
+$("sim-one").addEventListener("click", () => simulate(1, true));
+$("sim-many").addEventListener("click", () => simulate(20, false));
+
+/* ---------------- start ---------------- */
+(async function start() {
+  try {
+    const cfg = await api("/dashboard/features");
+    SETTINGS = cfg; FEATURES = cfg.features;
+    buildForm();
+    getQuote();
+  } catch (e) {
+    $("quote-result").innerHTML = `<p class="status err">${esc(e.message)}</p>`;
+  }
+  let saved = null;
+  try { saved = localStorage.getItem("pesh-tab"); } catch (_) {}
+  const initial = location.hash ? document.querySelector(`[aria-controls="panel-${location.hash.slice(1)}"]`) : null;
+  selectTab(initial || (saved && $(saved)) || tabs[0]);
+  $("use-sample").click();
+})();
+</script>
+</body>
+</html>

@@ -136,6 +136,8 @@ def create_app(engine: QuoteEngine, feasibility: FeasibilityModel | None = None,
         worst = call_cost(pr, req.input_tokens, req.max_output_tokens, req.cache_read_tokens,
                           req.cache_write_tokens, mult)
         allowed = rec.status == "running" and rec.spent + worst <= rec.budget
+        if rec.status == "running" and not allowed:
+            rec.status = "capped"      # the ceiling ended the run; its true cost would have exceeded B
         return {"allowed": bool(allowed), "worst_case_cost": worst, "spent": rec.spent,
                 "remaining": rec.budget - rec.spent, "degraded": rec.degraded, "status": rec.status}
 
@@ -181,9 +183,11 @@ def create_app(engine: QuoteEngine, feasibility: FeasibilityModel | None = None,
         aci = engine.aci_for(rec.model_version)
         missed, covered = False, None
         if not stopped:
-            # A capped run's true cost is >= B; if B >= quote it is a certain miss. Runs stopped by the
-            # feasibility controller are censored at an uninformative point and do not update ACI.
-            cost = max(max(rec.budget, rec.spent) if capped else rec.spent, 1e-9)
+            # A capped run's true cost is strictly above B (the next call would have breached it), so
+            # with B >= quote it is a certain miss; the small factor keeps B == quote from scoring as a
+            # hit. Runs stopped by the feasibility controller are censored at an uninformative point
+            # and do not update ACI.
+            cost = max(max(rec.budget, rec.spent) * (1 + 1e-6) if capped else rec.spent, 1e-9)
             missed = aci.update(math.log(cost) - rec.base_log)
             covered = bool(cost <= rec.quote)
             store.record_outcome(rec, covered)

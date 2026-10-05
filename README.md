@@ -49,6 +49,34 @@ c.finish(run["run_id"], success=ok)
 
 Or in-process, around any LLM call: `BudgetSession(budget=2.5).call(fn, input_tokens=..., max_output_tokens=...)`.
 
+## Dashboard
+
+```bash
+pesh dashboard            # opens http://127.0.0.1:8050 in your browser
+```
+
+A local web page for people who don't use the terminal. It has three screens:
+
+- **Analyze logs.** Load a CSV or Parquet file of past runs, or press **Use sample data**.
+  The page shows how predictable the cost is, how extreme the expensive runs get (with an
+  "infinite variance" warning when the tail index is below 2), a monthly forecast ("expected
+  ~$X, 90% of months below $Y"), and a chart of cost per run with the median, p90 and p99
+  marked.
+- **Quote a task.** Describe the task and get "This run will cost about $X. Guaranteed
+  ceiling $Y. Fixed price $Z."
+- **Live monitor.** Quote accuracy against the 90% target, the drift alarm, spend against
+  the ceiling for the current run, how often the safety controls stepped in, and recent
+  runs. **Simulate a run** sends demo runs through the real service endpoints (`/runs`,
+  `/authorize`, `/step`, `/finish`). Tick "Pretend the AI provider just updated its model"
+  to make runs more expensive and watch the safety controls work harder.
+
+Everything runs offline on simulated data, with no API keys. On first launch, without
+`--engine`, it trains a sample model (about 20 s) and caches it in
+`artifacts/dashboard-sample/`. To use your own model, pass
+`pesh dashboard --engine <engine.pkl> --feasibility <feasibility.pkl>`. Finished runs are
+stored in `pesh_dashboard.sqlite` (`--db`). The cost chart loads Chart.js from a CDN; without
+internet the page still works and shows the same figures as text.
+
 ## Paper → code map
 
 | Paper | Code |
