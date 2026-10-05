@@ -1,4 +1,4 @@
-"""Command-line interface: pesh simulate | calibrate | train | evaluate | experiments | quote | serve | dashboard."""
+"""Command-line interface: pesh simulate | calibrate | train | evaluate | experiments | quote | serve | dashboard | observe."""
 
 from __future__ import annotations
 
@@ -183,6 +183,14 @@ def cmd_dashboard(a):
     uvicorn.run(app, host=a.host, port=a.port, log_level="warning")
 
 
+def cmd_observe(a):
+    from .observe.cmd import run
+
+    code = run(a, lambda: _sample_model(Path(a.sample_dir))[0])
+    if code:
+        sys.exit(code)
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="pesh", description=__doc__)
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -256,6 +264,26 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--drift-min-n", type=int, default=20, help="finished runs before the drift alarm can fire")
     s.add_argument("--no-browser", action="store_true", help="don't open a browser window")
     s.set_defaults(fn=cmd_dashboard)
+
+    s = sub.add_parser("observe", help="observation loop: run tasks through model APIs, compare PESH's "
+                                       "predicted cost with the actual cost (cost only)")
+    s.add_argument("--tasks", required=True, help="JSONL rows {task_id, text, [features]}")
+    s.add_argument("--models", default="claude,gpt,together-open,fireworks-open",
+                   help="comma list of aliases (claude, gpt, together-open, fireworks-open) or provider:model-id; "
+                        "the first is the primary model for variance runs")
+    s.add_argument("--variance", type=int, default=10, help="same task, primary model, this many runs")
+    s.add_argument("--cross", type=int, default=3, help="same task, every model, this many runs each")
+    s.add_argument("--engine", help="trained engine.pkl; default: sample model trained on simulated runs")
+    s.add_argument("--sample-dir", default="artifacts/dashboard-sample")
+    s.add_argument("--db", default="pesh_dashboard.sqlite", help="SQLite file holding the observations table")
+    s.add_argument("--out", default="reports/observe", help="where report.md/json and CSV/Parquet exports go")
+    s.add_argument("--batch-size", type=int, default=10, help="tasks per batch; a report is printed after each")
+    s.add_argument("--max-tokens", type=int, default=512, help="max output tokens per API call")
+    s.add_argument("--max-spend", type=float, help="stop once this much USD has been spent in this session")
+    s.add_argument("--prices", help="JSON file of per-million-token price overrides")
+    s.add_argument("--simulate", action="store_true", help="force the offline simulator even if keys are set")
+    s.add_argument("--quiet", action="store_true", help="don't print every run")
+    s.set_defaults(fn=cmd_observe)
     return p
 
 
