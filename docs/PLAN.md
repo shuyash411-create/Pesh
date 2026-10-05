@@ -148,7 +148,7 @@ They decide whether the quote route or the GMP/fixed-price route carries the pro
 | # | Deliverable | Exit criterion |
 |---|---|---|
 | M0 (done) | MVP engine, simulator, service, tests, E0–E5 report | `pytest` and `pytest -m slow` green |
-| M1 | Ingest Bai et al. trajectories; H1/H2 on real data | ρ_τ, α_C, α_T with CIs |
+| M1 (in progress) | Ingest Bai et al. trajectories; H1/H2 on real data. Pipeline built and validated on simulated OpenHands output (`pesh ingest-openhands`, `pesh h1h2`); waiting on the data download | ρ_τ, α_C, α_T with CIs |
 | M2 | Real-feature quote model (text embeddings, repo stats) + GBM | information gap closed ≥ 30% vs linear |
 | M3 | Pilot: gateway in front of a partner's agent fleet, exploration slice on | P(C>B)=0, coverage within 2pp of target for 4 weeks |
 | M4 | GMP contract pilot with index-linked ceilings | realised margin ≥ loading, no ruin events |

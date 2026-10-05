@@ -104,6 +104,34 @@ optionally `cache_read_tokens, cache_write_tokens, cost, repeated_views`) go thr
 `pesh.data.adapters.openhands.load_openhands_dir`. The step logs also train the feasibility
 model (`pesh train --steps`).
 
+## M1: real trajectories (Bai et al., 2026)
+
+Bai et al. ran OpenHands on SWE-bench Verified with eight models, four runs per task, and
+released the trajectories. OpenHands writes one `output.jsonl` per model and run. Point
+Pesh at the folder that holds them:
+
+```bash
+pesh ingest-openhands path/to/trajectories --out data/bai_runs.parquet --steps-out data/bai_steps.parquet
+pesh h1h2 --logs data/bai_runs.parquet --out reports/m1
+```
+
+- **Ingest** reads per-call token usage from `history[*].llm_metrics` or `metrics.token_usages`.
+  It uses the provider-reported `accumulated_cost` when present and recomputes cost from tokens
+  otherwise. Outcomes come from each record's `report.resolved`, or a `report.json` (SWE-bench
+  harness) next to each `output.jsonl`, or `--report`. Run numbers come from `run_<n>` folder
+  names. `task_id` becomes `<model>::<instance_id>`, because repeat runs are only comparable
+  within one agent.
+- **`h1h2`** reports, per model and pooled, ρτ and its correlation ceiling (H1) and the Hill
+  tail indices of cost and steps with their ratio (H2). Each comes with a 95% cluster-bootstrap
+  interval and a plain verdict. Runs that hit the agent's step cap are excluded from the step
+  tail, and the report says how many there were.
+- Gold-patch size and the number of failing tests are kept as `proxy_*` columns for H3. They
+  are only known after the fact, so never use them as quote features.
+
+On simulated data at the same scale (500 tasks × 4 runs per model), the pipeline recovers the
+known ρτ ≈ 0.80. The cost tail index interval is wide ([2.0, 3.1] pooled over two models), so
+expect "inconclusive" on the infinite-variance question unless several models are pooled.
+
 ## Caveats
 
 - Every number in `reports/` is **simulated**, from a DGP calibrated to published moments. It

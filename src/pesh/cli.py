@@ -1,4 +1,5 @@
-"""Command-line interface: pesh simulate | calibrate | train | evaluate | experiments | quote | serve | dashboard."""
+"""Command-line interface: pesh simulate | calibrate | train | evaluate | ingest-openhands | h1h2 |
+experiments | quote | serve | dashboard."""
 
 from __future__ import annotations
 
@@ -139,6 +140,36 @@ def cmd_serve(a):
     uvicorn.run(app, host=a.host, port=a.port)
 
 
+def cmd_ingest_openhands(a):
+    from .data.adapters.openhands_eval import load_eval_outputs
+    from .data.io import save_runs
+
+    runs, steps = load_eval_outputs(a.inputs, a.report)
+    save_runs(runs, a.out)
+    if a.steps_out:
+        save_runs(steps, a.steps_out)
+    by_model = runs.groupby("model_version").agg(runs=("cost", "size"), tasks=("instance_id", "nunique"),
+                                                 mean_cost=("cost", "mean"), resolved=("success", "mean"))
+    print(f"wrote {len(runs)} runs to {a.out} ({runs.attrs.get('dropped', 0)} records without token usage "
+          f"dropped; cost source: {runs['cost_source'].value_counts().to_dict()})")
+    print(by_model.round(3).to_string())
+
+
+def cmd_h1h2(a):
+    from .data.io import load_runs
+    from .econometrics.inference import h1h2_report
+    from .eval.h1h2 import verdicts, write_h1h2_report
+
+    runs = load_runs(a.logs)
+    rep = h1h2_report(runs, by=a.by, n_boot=a.boot, fraction=a.fraction)
+    path = write_h1h2_report(rep, a.out, source=str(a.logs))
+    for name, row in rep.iterrows():
+        print(f"[{name}]")
+        for v in verdicts(row):
+            print("  " + v)
+    print(f"report written to {path}")
+
+
 def _sample_model(folder: Path):
     """Quote engine + feasibility model trained offline on simulated runs; cached in `folder`."""
     from .control.feasibility import FeasibilityModel, train_from_simulation
@@ -222,6 +253,21 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--logs", required=True)
     s.add_argument("--engine")
     s.set_defaults(fn=cmd_evaluate)
+
+    s = sub.add_parser("ingest-openhands", help="convert OpenHands SWE-bench output.jsonl files into a run log")
+    s.add_argument("inputs", nargs="+", help="output.jsonl files, or folders searched for output.jsonl")
+    s.add_argument("--report", nargs="*", help="SWE-bench harness report.json file(s) with resolved_ids")
+    s.add_argument("--out", default="data/openhands_runs.parquet")
+    s.add_argument("--steps-out", help="also write the per-call step log here")
+    s.set_defaults(fn=cmd_ingest_openhands)
+
+    s = sub.add_parser("h1h2", help="M1: predictability ceiling and tail indices with confidence intervals")
+    s.add_argument("--logs", required=True)
+    s.add_argument("--by", default="model_version", help="column that identifies the agent configuration")
+    s.add_argument("--boot", type=int, default=1000, help="bootstrap replicates")
+    s.add_argument("--fraction", type=float, default=0.02, help="tail share used by the Hill estimator")
+    s.add_argument("--out", default="reports/m1")
+    s.set_defaults(fn=cmd_h1h2)
 
     s = sub.add_parser("experiments", help="reproduce the paper's E0-E5 and write a report")
     s.add_argument("--out", default="reports")

@@ -40,7 +40,7 @@ def step_costs(steps: pd.DataFrame, pricing: PricingParams | None = None) -> pd.
     computed = (pr.p_in * uncached + pr.w * pr.p_in * write + pr.delta * pr.p_in * read
                 + pr.p_out * steps["output_tokens"])
     if "cost" in steps:
-        return steps["cost"].fillna(computed)
+        return pd.to_numeric(steps["cost"], errors="coerce").fillna(computed)
     return computed
 
 
