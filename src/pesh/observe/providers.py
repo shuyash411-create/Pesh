@@ -13,7 +13,7 @@ from __future__ import annotations
 import json
 import os
 import time
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 
 import httpx
@@ -237,7 +237,7 @@ class SimProvider(Provider):
 
     Each (task, model, run) gets its own seed, so repeated runs of one task vary run-to-run
     while sharing the task's latent difficulty (which is what makes the ICC meaningful).
-    Prices are scaled from the simulator's default by the model's relative list price.
+    Tokens are billed at the model's own input/output price (cache multipliers as in the simulator).
     """
 
     name = "sim"
@@ -264,9 +264,8 @@ class SimProvider(Provider):
         d = float(x @ np.asarray(p.theta) + u)
         tasks = pd.DataFrame({"x_repo": [x[0]], "x_complex": [x[1]], "difficulty": [d]})
         seed = zlib.crc32(f"{task.task_id}|{model.alias}|{kind}|{run_idx}".encode())
-        mult = (model.price_in + model.price_out) / (base.p_in + base.p_out)
         t0 = time.perf_counter()
-        res = execute(plan_runs(tasks, 1, p, seed=seed), params=p, pricing=base.scaled(mult)).runs.iloc[0]
+        res = execute(plan_runs(tasks, 1, p, seed=seed), params=p, pricing=replace(base, p_in=model.price_in, p_out=model.price_out)).runs.iloc[0]
         return RunResult(int(res["input_tokens"]), int(res["output_tokens"]), float(res["cost"]),
                          (time.perf_counter() - t0) * 1000.0, int(res["steps"]), bool(res["success"]))
 

@@ -121,6 +121,12 @@ pesh observe --tasks tasks.jsonl --models claude,gpt,together-open --variance 10
   time, steps, `within_ceiling`, `abs_error`, `pct_error`. Actual cost is API-reported token usage
   times a per-token price (`DEFAULT_MODELS` in `observe/providers.py`; list prices change, so
   override with `--prices prices.json`, `{"claude": {"in_per_mtok": 1, "out_per_mtok": 5}}`).
+- **Per-model prices:** the engine quotes in the dollars of its training logs ($3/$15 per Mtok for
+  the simulator). `pesh.quote.price_scale.PriceScaler` re-prices the predicted cost and ceiling at
+  each model's own per-token price, weighted by the training runs' input/output token mix, and
+  converts actual costs back before they reach ACI. Any model with a price entry works; the
+  engine itself is unchanged. An engine trained on other logs takes
+  `ObservationLoop(..., price_scaler=PriceScaler.from_runs(train_runs, PricingParams(p_in, p_out)))`.
 - **After each batch** (`--batch-size` tasks): rho_tau (ICC) from the variance runs, Hill and
   power-law tail index of cost, mean/median absolute and percentage error and the
   predicted-vs-actual correlation, realised ceiling coverage against the 90% target (outcomes are
