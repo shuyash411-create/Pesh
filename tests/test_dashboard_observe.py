@@ -138,3 +138,20 @@ def test_page_has_observation_tab(make_client):
     html = make_client().get("/").text
     for text in ("Observation", "Start observation", "API keys", "Stop"):
         assert text in html
+
+
+def test_summary_cards_only_use_the_current_batch(make_client):
+    c = make_client()
+    tasks = "first task\nsecond task"
+    c.post("/dashboard/observe/start", json={"tasks": tasks, "models": ["claude", "gpt"], "variance_runs": 2,
+                                             "cross_runs": 2})
+    st = _wait(c)
+    assert set(st["summary"]["cheapest"].values()) <= {"claude", "gpt"} and st["summary"]["cheapest"]
+    # second batch: same tasks, claude only; old gpt rows stay in the store but must not drive the cards
+    c.post("/dashboard/observe/start", json={"tasks": tasks, "models": ["claude"], "variance_runs": 3,
+                                             "cross_runs": 2})
+    st = _wait(c)
+    assert st["summary"]["cheapest"] == {}                 # one model: nothing to compare
+    assert "gpt" in {r["model"] for r in st["rows"]}       # history still visible in the table
+    n_claude = sum(1 for r in st["rows"] if r["model"] == "claude" and r["status"] == "ok")
+    assert st["summary"]["n_ok"] == n_claude
