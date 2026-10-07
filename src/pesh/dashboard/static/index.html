@@ -103,6 +103,26 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 .check{display:flex;gap:8px;align-items:flex-start;font-size:14px;max-width:60ch}
 .check input{margin-top:3px;accent-color:var(--accent)}
 [hidden]{display:none!important}
+.obs-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr));gap:14px;align-items:start}
+.keyrow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 10px;align-items:center}
+.keyrow input{grid-column:1 / -1;width:100%;font:inherit;padding:7px 10px;border:1px solid var(--rule);border-radius:8px;background:var(--surface);color:var(--ink);min-width:0}
+.keyrow .klabel{font-weight:600;font-size:14px}
+textarea{width:100%;min-height:150px;font:13px/1.5 var(--mono);padding:10px;border:1px solid var(--rule);border-radius:8px;background:var(--surface);color:var(--ink);resize:vertical}
+.models{display:grid;gap:8px}
+.models label{display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:14px}
+.models input{accent-color:var(--accent)}
+.numrow{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,190px),1fr));gap:12px}
+.numrow input{width:100%}
+.btn.big{font-size:16px;padding:12px 22px}
+.btn.stop{background:var(--surface);color:var(--bad);border-color:var(--bad)}
+.note{background:var(--warn-bg);color:var(--warn);border-radius:8px;padding:10px 12px;font-size:14px}
+.tablewrap{overflow-x:auto;max-height:520px;overflow-y:auto;background:var(--surface);border:1px solid var(--rule);border-radius:12px}
+table.obs{border-collapse:collapse;width:100%;font-size:13px;min-width:760px}
+table.obs th,table.obs td{padding:8px 10px;border-bottom:1px solid var(--rule);text-align:left;vertical-align:top}
+table.obs th{font-size:12px;color:var(--muted);font-weight:600;background:var(--sunken);position:sticky;top:0}
+table.obs .num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+table.obs tr:last-child td{border-bottom:none}
+table.obs td.err{color:var(--bad);max-width:320px;overflow-wrap:anywhere}
 @media (max-width:560px){
   .runrow{grid-template-columns:1fr;gap:6px}
   .big{font-size:28px}
@@ -118,6 +138,7 @@ input[type=range]{width:100%;accent-color:var(--accent)}
     <button role="tab" id="tab-analyze" aria-controls="panel-analyze" aria-selected="true">Analyze logs</button>
     <button role="tab" id="tab-quote" aria-controls="panel-quote" aria-selected="false">Quote a task</button>
     <button role="tab" id="tab-monitor" aria-controls="panel-monitor" aria-selected="false">Live monitor</button>
+    <button role="tab" id="tab-observe" aria-controls="panel-observe" aria-selected="false">Observation</button>
   </nav>
 </header>
 
@@ -129,6 +150,7 @@ input[type=range]{width:100%;accent-color:var(--accent)}
   </div>
   <div class="row">
     <button class="btn" id="use-sample" type="button">Use sample data</button>
+    <button class="btn secondary" id="use-obs" type="button" hidden>Use my observation runs</button>
     <label class="file btn secondary">
       Choose a file…<input id="file" type="file" accept=".csv,.parquet,.pq,.jsonl" aria-label="Choose a CSV or Parquet file of past runs">
     </label>
@@ -213,6 +235,62 @@ input[type=range]{width:100%;accent-color:var(--accent)}
     <div class="runs" id="run-list"><div class="empty">No runs yet.</div></div>
   </div>
 </section>
+
+<!-- 4. Observation -->
+<section role="tabpanel" id="panel-observe" aria-labelledby="tab-observe" hidden>
+  <div style="display:grid;gap:6px">
+    <h1>Test Pesh's predictions on real AI models</h1>
+    <p class="lead">Send real tasks to AI models. Before each run Pesh predicts what it will cost; afterwards it records what it actually cost, so you can see how close the predictions are.</p>
+  </div>
+  <div class="obs-grid">
+    <div class="card" style="gap:12px">
+      <h2>1. API keys</h2>
+      <p class="small muted">Keys are saved only on this computer (in <code id="env-file">.env</code>) and are never shown again in full. Leave a box empty to keep the key you already saved.</p>
+      <div id="key-rows" style="display:grid;gap:12px"></div>
+      <div class="row"><button class="btn secondary" id="save-keys" type="button">Save keys</button><span class="status" id="key-status" role="status"></span></div>
+      <div class="note" id="key-note" hidden>No keys yet. Runs will use the built-in simulator instead, which costs nothing.</div>
+    </div>
+    <div class="card" style="gap:12px">
+      <h2>2. Tasks</h2>
+      <p class="small muted">One prompt per line, or JSONL rows like <code>{"task_id": "...", "text": "..."}</code>. Three sample tasks are filled in.</p>
+      <textarea id="obs-tasks" aria-label="Tasks, one per line" spellcheck="false"></textarea>
+      <div class="row">
+        <label class="file btn secondary">Upload a file…<input id="obs-file" type="file" accept=".txt,.jsonl,.json" aria-label="Upload a tasks file"></label>
+        <button class="btn secondary" id="obs-reset" type="button">Restore sample tasks</button>
+        <span class="small muted" id="task-count"></span>
+      </div>
+    </div>
+  </div>
+  <div class="card" style="gap:14px">
+    <h2>3. Run settings</h2>
+    <div class="obs-grid">
+      <div style="display:grid;gap:8px;align-content:start">
+        <span class="small muted">Models to run. The first one ticked also gets the repeat runs.</span>
+        <div class="models" id="obs-models"></div>
+      </div>
+      <div class="numrow">
+        <div class="field"><label for="obs-variance">Repeat runs on the first model</label><span class="help">The same task, same model, several times, to measure run-to-run luck.</span><input type="number" id="obs-variance" min="0" max="50" value="5"></div>
+        <div class="field"><label for="obs-cross">Runs per model</label><span class="help">Each task on every ticked model, to compare models.</span><input type="number" id="obs-cross" min="1" max="20" value="2"></div>
+        <div class="field"><label for="obs-spend">Stop after spending ($)</label><span class="help">A safety limit for real API calls. The simulator is free.</span><input type="number" id="obs-spend" min="0.01" step="0.25" value="1.00"></div>
+      </div>
+    </div>
+    <label class="check"><input type="checkbox" id="obs-sim"> <span>Use the built-in simulator even though keys are saved (free, no API calls).</span></label>
+    <div class="row">
+      <button class="btn big" id="obs-start" type="button">Start observation</button>
+      <button class="btn big stop" id="obs-stop" type="button" disabled>Stop</button>
+      <span class="small muted" id="obs-plan"></span>
+    </div>
+    <div class="status" id="obs-status" role="status"></div>
+  </div>
+  <div class="cards" id="obs-cards"></div>
+  <div style="display:grid;gap:8px">
+    <h2>Runs, newest first</h2>
+    <div class="tablewrap"><table class="obs" aria-label="Observation runs">
+      <thead><tr><th>Task</th><th>Model</th><th>Run</th><th class="num">Predicted cost</th><th class="num">Actual cost</th><th>Within ceiling?</th><th>Error</th></tr></thead>
+      <tbody id="obs-rows"><tr><td colspan="7" class="muted">No runs yet. Press “Start observation”.</td></tr></tbody>
+    </table></div>
+  </div>
+</section>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"
@@ -249,6 +327,7 @@ function selectTab(tab) {
   });
   try { localStorage.setItem("pesh-tab", tab.id); } catch (_) {}
   if (tab.id === "tab-monitor") refreshMonitor();
+  if (tab.id === "tab-observe") pollObs();
 }
 tabs.forEach((t, i) => {
   t.addEventListener("click", () => selectTab(t));
@@ -397,7 +476,8 @@ $("file").addEventListener("change", () => {
     {method: "POST", body: f}), f.name);
 });
 $("rpm").addEventListener("change", () => {
-  if (lastSource === "sample") $("use-sample").click();
+  if (lastSource === "observations") $("use-obs").click();
+  else if (lastSource === "sample") $("use-sample").click();
   else if (lastSource) $("file").dispatchEvent(new Event("change"));
 });
 
@@ -599,6 +679,135 @@ async function simulate(n, animate) {
 $("sim-one").addEventListener("click", () => simulate(1, true));
 $("sim-many").addEventListener("click", () => simulate(20, false));
 
+/* ---------------- 4. observation ---------------- */
+let OBS = {setup: null, timer: null, lastCount: -1};
+const fmtCost = (x) => x === null || x === undefined ? "–" : x < 0.01 ? "$" + x.toPrecision(2) : money(x);
+function renderKeys(k) {
+  $("env-file").textContent = k.file;
+  $("key-rows").innerHTML = k.providers.map((p) => `
+    <div class="keyrow">
+      <label class="klabel" for="key-${p.env}">${esc(p.label)}</label>
+      <span class="pill ${p.connected ? "good" : "neutral"}">${p.connected ? "Connected " + esc(p.hint) : "Missing"}</span>
+      <input type="password" id="key-${p.env}" autocomplete="off" spellcheck="false"
+        placeholder="${p.connected ? (p.source === "environment" ? "Set in your environment" : "Saved. Paste a new key to replace it") : p.env}">
+    </div>`).join("");
+  $("key-note").hidden = k.any_connected;
+}
+async function loadKeys() { renderKeys(await api("/dashboard/observe/keys")); }
+$("save-keys").addEventListener("click", async () => {
+  const keys = {};
+  document.querySelectorAll("#key-rows input").forEach((i) => { if (i.value.trim()) keys[i.id.slice(4)] = i.value.trim(); });
+  $("key-status").className = "status";
+  if (!Object.keys(keys).length) { $("key-status").textContent = "Paste a key first."; return; }
+  try {
+    renderKeys(await post("/dashboard/observe/keys", {keys}));
+    $("key-status").textContent = "Saved.";
+    await loadSetup();
+  } catch (e) { $("key-status").className = "status err"; $("key-status").textContent = e.message; }
+});
+function countTasks() {
+  const n = $("obs-tasks").value.split("\n").filter((l) => l.trim()).length;
+  $("task-count").textContent = n === 1 ? "1 task" : `${n} tasks`;
+  updatePlan();
+}
+async function loadSetup() {
+  const prev = new Set([...document.querySelectorAll("#obs-models input:checked")].map((i) => i.value));
+  OBS.setup = await api("/dashboard/observe/setup");
+  const anyKey = OBS.setup.models.some((m) => m.connected);
+  $("obs-models").innerHTML = OBS.setup.models.map((m, i) => {
+    const on = prev.size ? prev.has(m.alias) : (anyKey ? m.connected : i < 2);
+    const tag = m.connected ? `<span class="pill good">key saved</span>` : anyKey ? `<span class="pill neutral">no key, skipped</span>` : `<span class="pill neutral">simulator</span>`;
+    return `<label><input type="checkbox" value="${m.alias}"${on ? " checked" : ""}> ${esc(m.label)} ${tag}</label>`;
+  }).join("");
+  document.querySelectorAll("#obs-models input").forEach((i) => i.addEventListener("change", updatePlan));
+  if (!$("obs-tasks").value.trim()) { $("obs-tasks").value = OBS.setup.sample_tasks.join("\n"); }
+  countTasks();
+}
+function chosenModels() { return [...document.querySelectorAll("#obs-models input:checked")].map((i) => i.value); }
+function updatePlan() {
+  const tasks = $("obs-tasks").value.split("\n").filter((l) => l.trim()).length, m = chosenModels().length;
+  const v = Math.max(0, parseInt($("obs-variance").value, 10) || 0), c = Math.max(1, parseInt($("obs-cross").value, 10) || 1);
+  $("obs-plan").textContent = m ? `${tasks * (m * c + v)} runs planned` : "Tick at least one model.";
+}
+["obs-variance", "obs-cross"].forEach((id) => $(id).addEventListener("input", updatePlan));
+$("obs-tasks").addEventListener("input", countTasks);
+$("obs-reset").addEventListener("click", () => { $("obs-tasks").value = OBS.setup.sample_tasks.join("\n"); countTasks(); });
+$("obs-file").addEventListener("change", async () => {
+  const f = $("obs-file").files[0];
+  if (f) { $("obs-tasks").value = (await f.text()).trim(); countTasks(); }
+});
+$("obs-start").addEventListener("click", async () => {
+  $("obs-status").className = "status";
+  try {
+    const r = await post("/dashboard/observe/start", {
+      tasks: $("obs-tasks").value, models: chosenModels(),
+      variance_runs: parseInt($("obs-variance").value, 10) || 0, cross_runs: parseInt($("obs-cross").value, 10) || 1,
+      max_spend: parseFloat($("obs-spend").value) || null, simulate: $("obs-sim").checked});
+    const where = r.mode === "live" ? "Calling the real APIs" : "Running on the built-in simulator (no API calls, no cost)";
+    $("obs-status").textContent = `${where}: ${r.planned} runs for ${r.tasks} task${r.tasks === 1 ? "" : "s"} on ${r.models.join(", ")}.`
+      + (r.skipped.length ? ` Skipped ${r.skipped.join(", ")} because there is no key for ${r.skipped.length === 1 ? "it" : "them"}.` : "");
+    pollObs();
+  } catch (e) { $("obs-status").className = "status err"; $("obs-status").textContent = e.message; }
+});
+$("obs-stop").addEventListener("click", async () => {
+  await post("/dashboard/observe/stop", {});
+  $("obs-status").textContent = "Stopping after the current run finishes. Runs so far are kept; press Start to continue where it left off.";
+});
+function obsCard(title, big, pill, text) { return card(title, big, pill, text); }
+function renderObsSummary(s) {
+  const out = [];
+  out.push(s.rho_tau === null ? obsCard("How predictable is the cost?", "–", `<span class="pill neutral">Needs repeat runs</span>`, "Needs at least 2 tasks with 2 or more repeat runs on the first model.")
+    : obsCard("How predictable is the cost?", pct(s.rho_tau), `<span class="pill ${s.rho_tau >= 0.7 ? "good" : s.rho_tau >= 0.4 ? "warn" : "bad"}">${s.rho_tau >= 0.7 ? "Highly predictable" : s.rho_tau >= 0.4 ? "Partly predictable" : "Hard to predict"}</span>`,
+      `Share of the cost differences that comes from the task itself rather than run-to-run luck.`));
+  out.push(s.mean_pct_error === null || s.mean_pct_error === undefined ? obsCard("How far off were the predictions?", "–", "", "Fills in after the first run.")
+    : obsCard("How far off were the predictions?", `${Math.round(s.mean_pct_error * 100)}%`, `<span class="pill neutral">average error</span>`,
+      "Average gap between Pesh's predicted cost and the actual cost, as a share of the actual cost. Lower is better."));
+  out.push(s.coverage === null || s.coverage === undefined ? obsCard("Did runs stay under the ceiling?", "–", "", "Fills in after the first run.")
+    : obsCard("Did runs stay under the ceiling?", pct(s.coverage), `<span class="pill ${s.coverage >= s.coverage_target - 0.03 ? "good" : "warn"}">target ${pct(s.coverage_target)}</span>`,
+      `Share of runs whose actual cost came in at or under Pesh's guaranteed ceiling.`));
+  const wins = Object.values(s.cheapest || {}).reduce((a, m) => (a[m] = (a[m] || 0) + 1, a), {});
+  const best = Object.entries(wins).sort((a, b) => b[1] - a[1]);
+  out.push(best.length ? obsCard("Cheapest model per task", esc(best[0][0]), `<span class="pill neutral">${best.map(([m, n]) => `${esc(m)}: ${n}`).join(" · ")}</span>`,
+      `Which model cost least on each task, counting tasks run on every ticked model.`)
+    : obsCard("Cheapest model per task", "–", "", "Needs each task run on at least two models."));
+  $("obs-cards").innerHTML = out.join("");
+}
+function renderObsRows(rows) {
+  if (!rows.length) { $("obs-rows").innerHTML = `<tr><td colspan="7" class="muted">No runs yet. Press “Start observation”.</td></tr>`; return; }
+  $("obs-rows").innerHTML = rows.map((r) => `<tr>
+    <td title="${esc(r.task_id)}">${r.task_text ? esc(r.task_text.length > 70 ? r.task_text.slice(0, 70) + "…" : r.task_text) : esc(r.task_id)}</td><td>${esc(r.model)}${r.provider === "sim" ? ` <span class="pill neutral">simulator</span>` : ""}</td>
+    <td>${r.kind === "variance" ? "repeat" : "compare"} #${r.run + 1}</td>
+    <td class="num">${fmtCost(r.predicted)}</td><td class="num">${fmtCost(r.actual)}</td>
+    <td>${r.status !== "ok" ? "–" : r.within ? `<span class="pill good">Yes</span>` : `<span class="pill bad">No</span>`}</td>
+    <td class="err">${r.error ? esc(r.error) : ""}</td></tr>`).join("");
+}
+async function refreshObs() {
+  const st = await api("/dashboard/observe/status");
+  renderObsSummary(st.summary);
+  if (st.total_observations !== OBS.lastCount) { renderObsRows(st.rows); OBS.lastCount = st.total_observations; }
+  $("obs-start").disabled = st.running; $("obs-stop").disabled = !st.running;
+  if (st.mode) {
+    const spent = st.mode === "live" ? ` Spent so far: ${fmtCost(st.spent)}.` : "";
+    const head = st.running ? `Running: ${st.done_this_run} of ${st.planned} runs done.` : `Finished: ${st.done_this_run} of ${st.planned} runs done.`;
+    $("obs-plan").textContent = head + spent + (st.budget_hit ? " Stopped at your spending limit." : "");
+  }
+  $("use-obs").hidden = st.summary.n_ok === 0;
+  return st.running;
+}
+function pollObs() {
+  clearTimeout(OBS.timer);
+  const tick = async () => {
+    let running = false;
+    try { running = await refreshObs(); } catch (_) { /* try again */ }
+    if (running || !$("panel-observe").hidden) OBS.timer = setTimeout(tick, running ? 1000 : 3000);
+  };
+  tick();
+}
+$("use-obs").addEventListener("click", () => {
+  lastSource = "observations";
+  analyze(() => api(`/dashboard/analyze?source=observations&runs_per_month=${rpm()}`, {method: "POST"}), "your observation runs");
+});
+
 /* ---------------- start ---------------- */
 (async function start() {
   try {
@@ -608,6 +817,9 @@ $("sim-many").addEventListener("click", () => simulate(20, false));
     getQuote();
   } catch (e) {
     $("quote-result").innerHTML = `<p class="status err">${esc(e.message)}</p>`;
+  }
+  try { await loadKeys(); await loadSetup(); refreshObs(); } catch (e) {
+    $("obs-status").className = "status err"; $("obs-status").textContent = e.message;
   }
   let saved = null;
   try { saved = localStorage.getItem("pesh-tab"); } catch (_) {}

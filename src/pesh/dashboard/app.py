@@ -9,6 +9,7 @@ calculation in `econometrics.risk`, and the calibrated simulator for demo runs.
 from __future__ import annotations
 
 import io
+import tempfile
 from pathlib import Path
 
 import numpy as np
@@ -22,6 +23,7 @@ from ..econometrics.risk import pooling_loading
 from ..quote.engine import QuoteEngine
 from ..schema import SchemaError, validate_runs
 from ..service.api import create_app
+from .observe_routes import add_observation_routes, observations_as_runs
 
 STATIC = Path(__file__).parent / "static"
 MAX_RUNS_PER_MONTH = 20_000
@@ -151,8 +153,13 @@ def demo_trajectory(params: DGPParams, seed: int, drift: bool, features: list[st
 
 def create_dashboard_app(engine: QuoteEngine, feasibility: FeasibilityModel | None = None, *,
                          db_path: str | None = None, drift_min_n: int = 20,
-                         params: DGPParams | None = None, **service_kw) -> FastAPI:
+                         params: DGPParams | None = None, env_path: str | Path = ".env",
+                         observe_report_dir: str = "reports/observe", sim_pause: float = 0.25,
+                         **service_kw) -> FastAPI:
     app = create_app(engine, feasibility, db_path=db_path, drift_min_n=drift_min_n, **service_kw)
+    # the Observation tab writes to the same SQLite file the service uses (a temp file if none was given)
+    obs_db = db_path or str(Path(tempfile.mkdtemp(prefix="pesh-")) / "pesh_dashboard.sqlite")
+    add_observation_routes(app, engine, obs_db, env_path, observe_report_dir, sim_pause)
     params = params or DGPParams()
     controller = service_kw.get("controller_config") or ControllerConfig()
     cache: dict = {}
@@ -171,7 +178,14 @@ def create_dashboard_app(engine: QuoteEngine, feasibility: FeasibilityModel | No
 
     @app.post("/dashboard/analyze")
     async def analyze(request: Request, filename: str = "upload.csv", sample: bool = False,
-                      runs_per_month: int = 2000):
+                      runs_per_month: int = 2000, source: str = ""):
+        if source == "observations":
+            obs = app.state.observation_store.frame()
+            runs = observations_as_runs(obs)
+            if runs.empty:
+                raise HTTPException(422, "No finished observation runs yet. Start one on the Observation tab.")
+            return analyze_runs(validate_runs(runs), engine, runs_per_month,
+                                f"Your observation runs ({len(runs)} finished)")
         if sample:
             runs, source = sample_runs(), "Sample data (simulated agent runs)"
         else:
@@ -208,6 +222,10 @@ def create_dashboard_app(engine: QuoteEngine, feasibility: FeasibilityModel | No
             counter["seed"] += 1
             seed = counter["seed"]
         return demo_trajectory(params, seed, drift, needed)
+
+    @app.get("/dashboard/observation-count")
+    def observation_count():
+        return {"finished": int(app.state.observation_store.count("ok"))}
 
     @app.get("/dashboard/runs")
     def recent_runs(limit: int = 12):
