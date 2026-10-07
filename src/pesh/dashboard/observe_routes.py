@@ -257,8 +257,12 @@ def add_observation_routes(app: FastAPI, engine, db_path: str, env_path: str | P
     def status(limit: int = 200):
         loop = state["loop"]
         df = store.frame()
-        current = df[df["task_id"].isin(state["task_ids"])] if state["task_ids"] else df.iloc[0:0]
-        rep = build_report(df, engine, primary=loop.models[0].alias if loop else None) if len(df) else {}
+        # summary cards describe the current batch only: its tasks AND the models it ran, so runs of
+        # other models left in the SQLite file from earlier batches can't leak in (e.g. a stale
+        # "cheapest model" for a model that wasn't ticked this time)
+        models = [m.alias for m in loop.models] if loop else []
+        current = df[df["task_id"].isin(state["task_ids"]) & df["model"].isin(models)] if loop else df.iloc[0:0]
+        rep = build_report(current, engine, primary=models[0]) if len(current) else {}
         rows = df.tail(limit).iloc[::-1]
         table = [{"task_id": r.task_id, "task_text": state["texts"].get(r.task_id), "model": r.model, "kind": r.kind, "run": int(r.run_idx),
                   "provider": r.provider, "status": r.status,
