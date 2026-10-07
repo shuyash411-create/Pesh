@@ -5,9 +5,10 @@
     loop.stop()       # finishes the current API call, then returns; safe to start again later
     loop.run()        # or run in the foreground
 
-Per run: ``engine.quote`` gives the predicted cost (p50) and ceiling (the online/ACI quote);
-the provider returns the actual cost; the pair is stored; the actual cost is fed to ACI so the
-ceiling self-calibrates. Runs are sequential, errors are recorded and skipped, and runs already
+Per run: ``engine.quote`` gives the predicted cost (p50) and ceiling (the online/ACI quote) in
+the engine's training dollars; ``PriceScaler`` re-prices both at the model's own per-token price;
+the provider returns the actual cost; the pair is stored; the actual cost, converted back to
+training dollars, is fed to ACI so the ceiling self-calibrates. Runs are sequential, errors are recorded and skipped, and runs already
 stored as ok are not repeated, so stopping and restarting is safe.
 """
 
@@ -18,7 +19,8 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Callable
 
-from .providers import ModelSpec, Provider, ProviderError, SimProvider, Task
+from ..quote.price_scale import PriceScaler
+from .providers import DEFAULT_MODELS, ModelSpec, Provider, ProviderError, SimProvider, Task
 from .report import build_report, save_report, to_markdown
 from .store import ObservationStore
 from .tasks import feature_frame
@@ -49,7 +51,8 @@ class ObservationLoop:
     def __init__(self, engine, tasks: list[Task], models: list[ModelSpec], providers: dict[str, Provider],
                  store: ObservationStore, r_variance: int = 10, r_cross: int = 3, batch_size: int = 10,
                  report_dir: str | None = None, max_spend: float | None = None,
-                 on_event: Callable[[str, dict], None] | None = None):
+                 on_event: Callable[[str, dict], None] | None = None,
+                 price_scaler: PriceScaler | None = None):
         if not models:
             raise ValueError("no runnable models")
         self.engine, self.tasks, self.models = engine, tasks, models
@@ -63,6 +66,16 @@ class ObservationLoop:
         self._thread: threading.Thread | None = None
         self._columns = list(engine.design.numeric) + list(engine.design.categorical)
         self._replayed = False
+        self._price_scaler = price_scaler
+        self._scale: dict[str, float] = {}
+
+    def price_scale(self, model: ModelSpec) -> float:
+        """Model dollars per training dollar (see ``pesh.quote.price_scale``)."""
+        if model.alias not in self._scale:
+            if self._price_scaler is None:
+                self._price_scaler = PriceScaler.for_simulator()
+            self._scale[model.alias] = self._price_scaler.ratio_for(model)
+        return self._scale[model.alias]
 
     # ------------------------------------------------------------------ control
     def start(self) -> None:
@@ -92,14 +105,16 @@ class ObservationLoop:
         import json
 
         import pandas as pd
+        specs = {**DEFAULT_MODELS, **{m.alias: m for m in self.models}}
         prior = self.store.frame()
         for r in prior[prior["status"] == "ok"].itertuples():
             try:
                 feats = json.loads(r.features)
                 df = pd.DataFrame([{c: feats[c] for c in self._columns}])
+                scale = self.price_scale(specs[r.model])
             except (TypeError, ValueError, KeyError):
                 continue
-            self.engine.observe(df, [max(float(r.actual_cost), _MIN_COST)], model_version=r.model)
+            self.engine.observe(df, [max(float(r.actual_cost) / scale, _MIN_COST)], model_version=r.model)
 
     def run(self) -> dict:
         """Process every task (in batches); returns the final report. Honors stop()."""
@@ -134,7 +149,8 @@ class ObservationLoop:
         try:
             df = feature_frame(task, self._columns)
             q = self.engine.quote(df, online=True, model_version=model.alias).iloc[0]
-            predicted, ceiling = float(q["p50"]), float(q["quote"])
+            scale = self.price_scale(model)
+            predicted, ceiling = float(q["p50"]) * scale, float(q["quote"]) * scale
         except Exception as e:      # a bad row must not stop the loop
             return self._error(base, f"predict failed: {type(e).__name__}: {e}")
         base.update(predicted_cost=predicted, predicted_ceiling=ceiling)
@@ -156,7 +172,8 @@ class ObservationLoop:
                "success": res.success, "within_ceiling": actual <= ceiling, "abs_error": err,
                "pct_error": err / actual if actual > 0 else None}
         self.store.record(obs)
-        self.engine.observe(df, [max(actual, _MIN_COST)], model_version=model.alias)   # ACI self-calibration
+        # ACI self-calibration, in the engine's training dollars
+        self.engine.observe(df, [max(actual / scale, _MIN_COST)], model_version=model.alias)
         self.on_event("run", obs)
         return obs
 
