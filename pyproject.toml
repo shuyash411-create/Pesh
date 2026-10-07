@@ -19,6 +19,7 @@ dependencies = [
   "uvicorn>=0.23",
   "pydantic>=2.0",
   "matplotlib>=3.7",
+  "httpx>=0.24",
 ]
 
 [project.optional-dependencies]

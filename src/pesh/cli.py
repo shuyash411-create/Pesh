@@ -1,4 +1,5 @@
-"""Command-line interface: pesh simulate | calibrate | train | evaluate | experiments | quote | serve | dashboard."""
+"""Command-line interface: pesh simulate | calibrate | train | evaluate | ingest-openhands | h1h2 |
+experiments | quote | serve | dashboard | observe."""
 
 from __future__ import annotations
 
@@ -139,6 +140,36 @@ def cmd_serve(a):
     uvicorn.run(app, host=a.host, port=a.port)
 
 
+def cmd_ingest_openhands(a):
+    from .data.adapters.openhands_eval import load_eval_outputs
+    from .data.io import save_runs
+
+    runs, steps = load_eval_outputs(a.inputs, a.report)
+    save_runs(runs, a.out)
+    if a.steps_out:
+        save_runs(steps, a.steps_out)
+    by_model = runs.groupby("model_version").agg(runs=("cost", "size"), tasks=("instance_id", "nunique"),
+                                                 mean_cost=("cost", "mean"), resolved=("success", "mean"))
+    print(f"wrote {len(runs)} runs to {a.out} ({runs.attrs.get('dropped', 0)} records without token usage "
+          f"dropped; cost source: {runs['cost_source'].value_counts().to_dict()})")
+    print(by_model.round(3).to_string())
+
+
+def cmd_h1h2(a):
+    from .data.io import load_runs
+    from .econometrics.inference import h1h2_report
+    from .eval.h1h2 import verdicts, write_h1h2_report
+
+    runs = load_runs(a.logs)
+    rep = h1h2_report(runs, by=a.by, n_boot=a.boot, fraction=a.fraction)
+    path = write_h1h2_report(rep, a.out, source=str(a.logs))
+    for name, row in rep.iterrows():
+        print(f"[{name}]")
+        for v in verdicts(row):
+            print("  " + v)
+    print(f"report written to {path}")
+
+
 def _sample_model(folder: Path):
     """Quote engine + feasibility model trained offline on simulated runs; cached in `folder`."""
     from .control.feasibility import FeasibilityModel, train_from_simulation
@@ -183,6 +214,14 @@ def cmd_dashboard(a):
     uvicorn.run(app, host=a.host, port=a.port, log_level="warning")
 
 
+def cmd_observe(a):
+    from .observe.cmd import run
+
+    code = run(a, lambda: _sample_model(Path(a.sample_dir))[0])
+    if code:
+        sys.exit(code)
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="pesh", description=__doc__)
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -223,6 +262,21 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--engine")
     s.set_defaults(fn=cmd_evaluate)
 
+    s = sub.add_parser("ingest-openhands", help="convert OpenHands SWE-bench output.jsonl files into a run log")
+    s.add_argument("inputs", nargs="+", help="output.jsonl files, or folders searched for output.jsonl")
+    s.add_argument("--report", nargs="*", help="SWE-bench harness report.json file(s) with resolved_ids")
+    s.add_argument("--out", default="data/openhands_runs.parquet")
+    s.add_argument("--steps-out", help="also write the per-call step log here")
+    s.set_defaults(fn=cmd_ingest_openhands)
+
+    s = sub.add_parser("h1h2", help="M1: predictability ceiling and tail indices with confidence intervals")
+    s.add_argument("--logs", required=True)
+    s.add_argument("--by", default="model_version", help="column that identifies the agent configuration")
+    s.add_argument("--boot", type=int, default=1000, help="bootstrap replicates")
+    s.add_argument("--fraction", type=float, default=0.02, help="tail share used by the Hill estimator")
+    s.add_argument("--out", default="reports/m1")
+    s.set_defaults(fn=cmd_h1h2)
+
     s = sub.add_parser("experiments", help="reproduce the paper's E0-E5 and write a report")
     s.add_argument("--out", default="reports")
     s.add_argument("--scale", type=float, default=1.0)
@@ -256,6 +310,26 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--drift-min-n", type=int, default=20, help="finished runs before the drift alarm can fire")
     s.add_argument("--no-browser", action="store_true", help="don't open a browser window")
     s.set_defaults(fn=cmd_dashboard)
+
+    s = sub.add_parser("observe", help="observation loop: run tasks through model APIs, compare PESH's "
+                                       "predicted cost with the actual cost (cost only)")
+    s.add_argument("--tasks", required=True, help="JSONL rows {task_id, text, [features]}")
+    s.add_argument("--models", default="claude,gpt,together-open,fireworks-open",
+                   help="comma list of aliases (claude, gpt, together-open, fireworks-open) or provider:model-id; "
+                        "the first is the primary model for variance runs")
+    s.add_argument("--variance", type=int, default=10, help="same task, primary model, this many runs")
+    s.add_argument("--cross", type=int, default=3, help="same task, every model, this many runs each")
+    s.add_argument("--engine", help="trained engine.pkl; default: sample model trained on simulated runs")
+    s.add_argument("--sample-dir", default="artifacts/dashboard-sample")
+    s.add_argument("--db", default="pesh_dashboard.sqlite", help="SQLite file holding the observations table")
+    s.add_argument("--out", default="reports/observe", help="where report.md/json and CSV/Parquet exports go")
+    s.add_argument("--batch-size", type=int, default=10, help="tasks per batch; a report is printed after each")
+    s.add_argument("--max-tokens", type=int, default=512, help="max output tokens per API call")
+    s.add_argument("--max-spend", type=float, help="stop once this much USD has been spent in this session")
+    s.add_argument("--prices", help="JSON file of per-million-token price overrides")
+    s.add_argument("--simulate", action="store_true", help="force the offline simulator even if keys are set")
+    s.add_argument("--quiet", action="store_true", help="don't print every run")
+    s.set_defaults(fn=cmd_observe)
     return p
 
 

@@ -77,6 +77,56 @@ Everything runs offline on simulated data, with no API keys. On first launch, wi
 stored in `pesh_dashboard.sqlite` (`--db`). The cost chart loads Chart.js from a CDN; without
 internet the page still works and shows the same figures as text.
 
+## Observation loop
+
+`pesh observe` is PESH's internal ground-truth collector. It runs real tasks through real model
+APIs, asks the existing quote engine for a predicted cost and ceiling **before** each run,
+records the **actual** cost the API returned, and feeds the pairs into the existing
+econometrics to show how good the predictions were. It sits on top of the engine
+(`src/pesh/observe/`) and reuses `QuoteEngine.quote`/`observe`, `econometrics/icc.py`,
+`econometrics/tails.py` and `quote/aci.py` rather than reimplementing them.
+
+```bash
+export ANTHROPIC_API_KEY=... OPENAI_API_KEY=... TOGETHER_API_KEY=... FIREWORKS_API_KEY=...   # any subset
+pesh observe --tasks tasks.jsonl --models claude,gpt,together-open --variance 10 --cross 3
+```
+
+- **Models** (API only, nothing runs locally): `claude` (Anthropic), `gpt` (OpenAI),
+  `together-open`, `fireworks-open`, or `provider:model-id`. Keys are read from the environment,
+  sent only in request headers, never logged or stored, and scrubbed from error messages. A model
+  whose key is missing is skipped. With no usable keys the loop falls back to the offline
+  simulator (`provider = sim`), so it always runs; `--simulate` forces that.
+- **Tasks:** JSONL rows `{task_id, text, [features]}` (`tasks.jsonl` is a sample). Missing
+  `features` are filled by a crude text heuristic. Supply real pre-execution features for
+  meaningful predictions.
+- **Two multi-run types:** *variance* (same task, first model in `--models`, `--variance` runs,
+  default 10) and *cross-model* (same task on every model, `--cross` runs each, default 3). Runs per
+  task = (models x `--cross`) + `--variance`. Runs are sequential; a failed call is stored as
+  `status=error` and the loop continues.
+- **Resumable:** every run is stored in the `observations` table of the SQLite file (`--db`,
+  default `pesh_dashboard.sqlite`, shared with the dashboard) keyed by
+  `(task_id, model, kind, run_idx)`. Stop with Ctrl+C and rerun the same command: completed runs
+  are skipped, errored runs are retried, and the ACI state is rebuilt from the stored rows.
+- **Per row:** predicted cost (p50) and ceiling (online ACI quote), actual cost, tokens, wall
+  time, steps, `within_ceiling`, `abs_error`, `pct_error`. Actual cost is API-reported token usage
+  times a per-token price (`DEFAULT_MODELS` in `observe/providers.py`; list prices change, so
+  override with `--prices prices.json`, `{"claude": {"in_per_mtok": 1, "out_per_mtok": 5}}`).
+- **After each batch** (`--batch-size` tasks): rho_tau (ICC) from the variance runs, Hill and
+  power-law tail index of cost, mean/median absolute and percentage error and the
+  predicted-vs-actual correlation, realised ceiling coverage against the 90% target (outcomes are
+  fed to ACI so the ceiling self-calibrates), and a per-model summary with the cheapest model per
+  task. Output goes to `--out` (default `reports/observe/`): `report.md`, `report.json`,
+  `observations.csv`, `observations.parquet`.
+- **Safety:** `--max-spend USD` stops the loop once that much has been spent in the session;
+  `--max-tokens` caps each call's output.
+- **From Python** (for the dashboard): `ObservationLoop(...).start()` / `.stop()` run it in a
+  background thread, and `ObservationStore(db).frame()` reads the table.
+
+**Cost-only by design.** The loop never scores, judges or predicts output quality. `success`
+only records that the call completed with output. The default engine is trained on simulated
+agent runs, so its absolute scale will not match single API calls until you train an engine on
+your own observations (`observations.parquet` fits the run-log schema).
+
 ## Paper → code map
 
 | Paper | Code |
@@ -103,6 +153,34 @@ optionally `cache_read_tokens, cache_write_tokens, cost, repeated_views`) go thr
 `pesh.data.adapters.generic.runs_from_steps`. OpenHands trajectories go through
 `pesh.data.adapters.openhands.load_openhands_dir`. The step logs also train the feasibility
 model (`pesh train --steps`).
+
+## M1: real trajectories (Bai et al., 2026)
+
+Bai et al. ran OpenHands on SWE-bench Verified with eight models, four runs per task, and
+released the trajectories. OpenHands writes one `output.jsonl` per model and run. Point
+Pesh at the folder that holds them:
+
+```bash
+pesh ingest-openhands path/to/trajectories --out data/bai_runs.parquet --steps-out data/bai_steps.parquet
+pesh h1h2 --logs data/bai_runs.parquet --out reports/m1
+```
+
+- **Ingest** reads per-call token usage from `history[*].llm_metrics` or `metrics.token_usages`.
+  It uses the provider-reported `accumulated_cost` when present and recomputes cost from tokens
+  otherwise. Outcomes come from each record's `report.resolved`, or a `report.json` (SWE-bench
+  harness) next to each `output.jsonl`, or `--report`. Run numbers come from `run_<n>` folder
+  names. `task_id` becomes `<model>::<instance_id>`, because repeat runs are only comparable
+  within one agent.
+- **`h1h2`** reports, per model and pooled, ρτ and its correlation ceiling (H1) and the Hill
+  tail indices of cost and steps with their ratio (H2). Each comes with a 95% cluster-bootstrap
+  interval and a plain verdict. Runs that hit the agent's step cap are excluded from the step
+  tail, and the report says how many there were.
+- Gold-patch size and the number of failing tests are kept as `proxy_*` columns for H3. They
+  are only known after the fact, so never use them as quote features.
+
+On simulated data at the same scale (500 tasks × 4 runs per model), the pipeline recovers the
+known ρτ ≈ 0.80. The cost tail index interval is wide ([2.0, 3.1] pooled over two models), so
+expect "inconclusive" on the infinite-variance question unless several models are pooled.
 
 ## Caveats
 
