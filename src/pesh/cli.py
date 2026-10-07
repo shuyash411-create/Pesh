@@ -206,7 +206,7 @@ def cmd_dashboard(a):
     else:
         engine, fm = _sample_model(Path(a.sample_dir))
     app = create_dashboard_app(engine, fm, db_path=a.db, drift_min_n=a.drift_min_n, headroom=a.headroom,
-                               controller_config=ControllerConfig())
+                               controller_config=ControllerConfig(), env_path=a.env_file)
     url = f"http://{a.host}:{a.port}/"
     print(f"Pesh dashboard running at {url}  (press Ctrl+C to stop)", flush=True)
     if not a.no_browser:
@@ -309,6 +309,7 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--headroom", type=float, default=1.0, help="ceiling = headroom x quote")
     s.add_argument("--drift-min-n", type=int, default=20, help="finished runs before the drift alarm can fire")
     s.add_argument("--no-browser", action="store_true", help="don't open a browser window")
+    s.add_argument("--env-file", default=".env", help="where API keys entered on the Observation tab are saved")
     s.set_defaults(fn=cmd_dashboard)
 
     s = sub.add_parser("observe", help="observation loop: run tasks through model APIs, compare PESH's "

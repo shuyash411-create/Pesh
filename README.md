@@ -69,6 +69,16 @@ A local web page for people who don't use the terminal. It has three screens:
   runs. **Simulate a run** sends demo runs through the real service endpoints (`/runs`,
   `/authorize`, `/step`, `/finish`). Tick "Pretend the AI provider just updated its model"
   to make runs more expensive and watch the safety controls work harder.
+- **Observation.** Runs the observation loop (`pesh observe`) from the page. Paste API keys
+  for Anthropic, OpenAI, Together or Fireworks. They are saved only in a local `.env` file
+  (`--env-file`), and the page only ever shows the last four characters. Paste tasks, one
+  prompt per line or JSONL, or upload a file; three samples are filled in. Pick models and the
+  number of repeat and per-model runs, then press **Start observation**. A table fills row by
+  row with predicted cost, actual cost, whether the run stayed under the ceiling, and any
+  error. Cards show run-to-run predictability (ρτ), average prediction error, ceiling coverage
+  and the cheapest model per task. Without keys it runs on the built-in simulator, free and
+  offline. Runs go into the same SQLite file, and **Use my observation runs** on Analyze logs
+  analyses them.
 
 Everything runs offline on simulated data, with no API keys. On first launch, without
 `--engine`, it trains a sample model (about 20 s) and caches it in
